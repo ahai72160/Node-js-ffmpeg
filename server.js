@@ -42,7 +42,7 @@ app.post("/api", async (req, res) => {
       .json({ error: "video_url and key are required" });
   }
 
-  const outputFile = "/tmp/video.mp4";
+  const outputFile = "video.mp4";
 
   try {
     console.log("Downloading:", video_url);
