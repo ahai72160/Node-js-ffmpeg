@@ -3,79 +3,39 @@ const ffmpeg = require("fluent-ffmpeg");
 const fs = require("fs");
 const https = require("https");
 const http = require("http");
-const path = require("path");
 
 const app = express();
-app.use(express.json());
 
-// Test route
-app.get("/", (req, res) => {
-  res.send("FFmpeg Node.js Server is running - OK!");
-});
-
-// Logging helper
-function log(...args) {
-  console.log(new Date().toISOString(), "-", ...args);
-}
-
+// Function: download video to local file
 function downloadFile(fileUrl, outputPath) {
   return new Promise((resolve, reject) => {
     const protocol = fileUrl.startsWith("https") ? https : http;
-
-    log("Starting download from:", fileUrl);
-
     const file = fs.createWriteStream(outputPath);
-
     protocol.get(fileUrl, response => {
-      log("Download status:", response.statusCode);
-
       if (response.statusCode !== 200) {
-        return reject(
-          new Error("Download failed. Status: " + response.statusCode)
-        );
+        return reject(new Error("Download failed. Status: " + response.statusCode));
       }
-
       response.pipe(file);
-
-      file.on("finish", () => {
-        log("Download finished:", outputPath);
-        file.close(() => resolve(outputPath));
-      });
-
-      file.on("error", err => {
-        log("File write error:", err);
-        reject(err);
-      });
-    }).on("error", err => {
-      log("Request error:", err);
-      reject(err);
+      file.on("finish", () => file.close(() => resolve(outputPath)));
+      file.on("error", err => reject(err));
     });
   });
 }
 
-app.post("/api", async (req, res) => {
-  log("Received POST /api from", req.ip);
-  log("Request body:", req.body);
-
-  const { video_url, key } = req.body;
-
-  if (!video_url || !key) {
-    log("Missing parameters!");
+// GET API
+app.get("/api", async (req, res) => {
+  const { stream_key, video_url } = req.query;
+  if (!stream_key || !video_url) {
     return res.status(400).json({
-      error: "video_url and key are required"
+      error: "stream_key and video_url are required"
     });
   }
-
-  const outputFile = path.join(__dirname, "video.mp4");
-
+  const outputFile = "downloaded_video.mp4";
   try {
-    // Download file first
-    log("Starting to download:", video_url);
+    console.log("Downloading video:", video_url);
     await downloadFile(video_url, outputFile);
-    log("Download completed. Preparing FFmpeg stream...");
-
-    // FFmpeg streaming
-    const command = ffmpeg(outputFile)
+    console.log("Download complete → starting FFmpeg streaming...");
+    ffmpeg(outputFile)
       .addOptions([
         "-vcodec libx264",
         "-preset veryfast",
@@ -87,34 +47,19 @@ app.post("/api", async (req, res) => {
         "-b:a 128k",
         "-f flv"
       ])
-      .output(`rtmp://live.twitch.tv/app/${key}`);
-
-    command.on("start", cmd => {
-      log("FFmpeg has started:");
-      log(cmd);
+      .output(`rtmp://live.twitch.tv/app/${stream_key}`)
+      .on("start", cmd => console.log("FFmpeg started:", cmd))
+      .on("stderr", line => console.log("[FFmpeg]", line))
+      .on("error", err => console.error("FFmpeg error:", err))
+      .on("end", () => console.log("Streaming finished"))
+      .run();
+    res.json({
+      ok: true,
+      message: "Video downloaded & streaming started"
     });
-
-    command.on("progress", p => {
-      log(`FFmpeg progress: ${p.percent ? p.percent.toFixed(2) : 0}%`);
-    });
-
-    command.on("error", err => {
-      log("FFmpeg error:", err.message);
-    });
-
-    command.on("end", () => {
-      log("FFmpeg finished streaming.");
-    });
-
-    command.run();
-
-    res.json({ ok: true, message: "Stream started!" });
-
   } catch (err) {
-    log("Server error:", err);
+    console.error("Processing error:", err);
     res.status(500).json({ error: err.message });
   }
 });
-
-// Start server
-app.listen(3000, () => log("Server running on port 3000"));
+app.listen(3000, () => console.log("Server running on port 3000"));
