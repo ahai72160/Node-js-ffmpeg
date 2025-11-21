@@ -4,6 +4,10 @@ const ffmpeg = require("fluent-ffmpeg")
 const app = express()
 app.use(express.json())
 
+app.get("/", (req, res) => {
+  res.send("FFmpeg Node.js Server is running!");
+});
+
 app.post("/start", (req, res) => {
   const { input, key } = req.body
 
