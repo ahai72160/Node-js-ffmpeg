@@ -10,7 +10,7 @@ app.use(express.json());
 
 // Test route
 app.get("/", (req, res) => {
-  res.send("FFmpeg Node.js Server is running!");
+  res.send("FFmpeg Node.js Server is running - OK!");
 });
 
 // Logging helper
