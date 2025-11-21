@@ -6,6 +6,11 @@ const http = require("http");
 
 const app = express();
 
+// Root route to confirm server is running
+app.get("/", (req, res) => {
+  res.send("FFmpeg Node.js Streaming Server is running!");
+});
+
 // Function: download video to local file
 function downloadFile(fileUrl, outputPath) {
   return new Promise((resolve, reject) => {
